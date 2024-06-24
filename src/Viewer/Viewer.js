@@ -6,6 +6,8 @@ import {Row} from "react-bootstrap";
 import LoadingIcons from "react-loading-icons";
 
 import dayjs from "dayjs";
+import tz from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc";
 import {v1 as uuidv1} from "uuid";
 
 import {THEME_STATES} from "../ThemeContext/THEME_STATES";
@@ -30,6 +32,9 @@ import {
 
 import "./Viewer.scss";
 
+
+dayjs.extend(utc);
+dayjs.extend(tz);
 
 Viewer.propTypes = {
     fileSrc: oneOfType([
