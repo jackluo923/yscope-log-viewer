@@ -544,7 +544,7 @@ class FileManager {
             this._workerPool.assignTask({
                 sessionId: this.sessionId,
                 page: page,
-                f:
+                pageLogs:
                     this._logsArray?.slice(targetEvent, targetEvent + numberOfEvents).join("\n"),
             });
             return;
