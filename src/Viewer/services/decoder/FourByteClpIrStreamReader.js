@@ -82,7 +82,11 @@ class FourByteClpIrStreamReader {
             //  since it actually stores the log event in preparation for
             //  decoding whereas indexing the log event only needs to read
             //  the tag and length bytes.
-            const {timestamp, verbosityIx} = this._readLogEvent();
+            const logEvent = this._readLogEvent();
+            if (null === logEvent) {
+                return true;
+            }
+            const {timestamp, verbosityIx} = logEvent;
             logEventIndex.push({
                 "startIndex": beginIdx,
                 "endIndex": this._dataInputStream.getPos(),
@@ -174,7 +178,11 @@ class FourByteClpIrStreamReader {
         let contentBeginOffset = null;
 
         try {
-            ({timestamp, verbosityIx, numValidVars} = this._readLogEvent());
+            const logEvent = this._readLogEvent();
+            if (null === logEvent) {
+                return true;
+            }
+            ({timestamp, verbosityIx, numValidVars} = logEvent);
         } catch (error) {
             if (!(error instanceof FourByteClpIrStreamReaderEOFError)) {
                 throw error;
@@ -237,9 +245,9 @@ class FourByteClpIrStreamReader {
 
     /**
      * Reads a log event from the stream
-     * @return {{timestamp: bigint, verbosityIx: number, numValidVars: number}}
-     * The log event's timestamp, verbosity index, and
-     * number of valid variables
+     * @return {{timestamp: bigint, verbosityIx: number, numValidVars: number} | null}
+     * The log event's timestamp, verbosity index, and number of valid variables
+     * or null if no log events were read but the stream may contain more events
      * @throws {FourByteClpIrStreamReaderEOFError} on EOF
      * @private
      */
@@ -247,6 +255,11 @@ class FourByteClpIrStreamReader {
         let tag = this._streamProtocolDecoder.readTag(this._dataInputStream);
         if (PROTOCOL.PAYLOAD.EOF === tag) {
             throw new FourByteClpIrStreamReaderEOFError();
+        } else if (PROTOCOL.PAYLOAD.TIMESTAMP_UTC_OFFSET_CHANGE === tag) {
+            // TODO: add formatting support for UTC offset changes
+            // Drain the int64 packet
+            this._dataInputStream.readSignedLong();
+            return null;
         }
 
         // Read variables if present in this message
