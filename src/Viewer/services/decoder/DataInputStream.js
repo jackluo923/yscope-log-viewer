@@ -147,6 +147,21 @@ class DataInputStream {
     }
 
     /**
+     * Reads an unsigned int
+     * @return {number} The read unsigned int
+     */
+    readUnsignedInt () {
+        const requiredLen = this._byteIx + 4;
+        if (this._dataView.byteLength < requiredLen) {
+            this._byteIx = this._dataView.byteLength;
+            throw new DataInputStreamEOFError(this._dataView.byteLength, requiredLen);
+        }
+        const val = this._dataView.getUint32(this._byteIx, false);
+        this._byteIx += 4;
+        return val;
+    }
+
+    /**
      * Reads a signed long int (64 bit)
      * @return {BigInt} The read signed long int
      */

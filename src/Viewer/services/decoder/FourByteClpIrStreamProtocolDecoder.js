@@ -1,27 +1,18 @@
 import PROTOCOL from "./PROTOCOL";
 import {getMajorVersion} from "./utils";
 
+
 class FourByteClpIrStreamProtocolDecoder {
     constructor (dataInputStream, tokenDecoder) {
         this._timestamp = null;
         this._textDecoder = new TextDecoder();
         this._metadataTimestamp = null;
 
+        this._attributeTable = null;
+        this._numAttributes = 0;
+
         this.readAndValidateEncodingType(dataInputStream);
         this.initializeStream(dataInputStream, tokenDecoder);
-    }
-
-    validateVersion (version) {
-        if (PROTOCOL.METADATA.VERSION_VALUE === version) {
-            return true;
-        }
-        if ("v0.0.0" === version) {
-            return true;
-        }
-        if ("0.0.1" === version) {
-            return true;
-        }
-        return false;
     }
 
     _setTimestamp (timestamp) {
@@ -30,6 +21,14 @@ class FourByteClpIrStreamProtocolDecoder {
 
     _reset () {
         this._timestamp = this._metadataTimestamp;
+    }
+
+    getNumAttributes () {
+        return this._numAttributes;
+    }
+
+    getAttributeTable () {
+        return this._attributeTable;
     }
 
     readTag (dataInputStream) {
@@ -73,14 +72,33 @@ class FourByteClpIrStreamProtocolDecoder {
         }
     }
 
+    initializeAttributeTable (metadata) {
+        const attributes = metadata[PROTOCOL.METADATA.ATTRIBUTE_TABLE_KEY];
+        if (null === attributes || "undefined" === typeof attributes) {
+            return;
+        }
+        const {length} = attributes;
+        this._attributeTable = {};
+        this._numAttributes = length;
+        for (let i = 0; i < length; ++i) {
+            const name = attributes[i][PROTOCOL.ATTRIBUTE.NAME_KEY];
+            this._attributeTable[name] = i;
+        }
+    }
+
     initializeStream (dataInputStream, tokenDecoder) {
         const metadata = this.readMetadata(dataInputStream);
         const version = metadata[PROTOCOL.METADATA.VERSION_KEY];
         this.validateProtocolVersion(version);
+        const androidVersion = metadata[PROTOCOL.METADATA.ANDROID_BUILD_VERSION_KEY];
         this._timestamp = BigInt(metadata[PROTOCOL.METADATA.REFERENCE_TIMESTAMP_KEY]);
+        if ("undefined" !== typeof androidVersion) {
+            this.initializeAttributeTable(metadata);
+        }
         tokenDecoder.setZoneId(metadata[PROTOCOL.METADATA.TZ_ID_KEY]);
         tokenDecoder.setTimestampPattern(metadata[PROTOCOL.METADATA.TIMESTAMP_PATTERN_KEY]);
         this._metadataTimestamp = this._timestamp;
+
         return metadata;
     }
 
@@ -89,6 +107,7 @@ class FourByteClpIrStreamProtocolDecoder {
         if (PROTOCOL.METADATA.JSON_ENCODING !== tag) {
             throw new Error(`Unsupported metadata encoding tag: ${tag}`);
         }
+
         return this.readSerializedMetadata(dataInputStream);
     }
 
@@ -132,6 +151,49 @@ class FourByteClpIrStreamProtocolDecoder {
                 break;
             default:
                 throw new Error("Unsupported variable tag present in stream.");
+        }
+
+        return true;
+    }
+
+    tryReadingAttribute (dataInputStream, tag, attrBuf) {
+        if (PROTOCOL.PAYLOAD.isNotAttr(tag)) {
+            return false;
+        }
+
+        switch (tag) {
+            case PROTOCOL.PAYLOAD.ATTR_NULL:
+                attrBuf.set_null();
+                break;
+            case PROTOCOL.PAYLOAD.ATTR_NUM_BYTE:
+                attrBuf.set_int_val(dataInputStream.readSignedByte());
+                break;
+            case PROTOCOL.PAYLOAD.ATTR_NUM_SHORT:
+                attrBuf.set_int_val(dataInputStream.readSignedShort());
+                break;
+            case PROTOCOL.PAYLOAD.ATTR_NUM_INT:
+                attrBuf.set_int_val(dataInputStream.readInt());
+                break;
+            case PROTOCOL.PAYLOAD.ATTR_NUM_LONG:
+                attrBuf.set_int_val(dataInputStream.readBigInt());
+                break;
+            case PROTOCOL.PAYLOAD.ATTR_STR_LEN_BYTE:
+                attrBuf.set_str_val_from_stream(
+                    dataInputStream,
+                    dataInputStream.readUnsignedByte()
+                );
+                break;
+            case PROTOCOL.PAYLOAD.ATTR_STR_LEN_SHORT:
+                attrBuf.set_str_val_from_stream(
+                    dataInputStream,
+                    dataInputStream.readUnsignedShort()
+                );
+                break;
+            case PROTOCOL.PAYLOAD.ATTR_STR_LEN_INT:
+                attrBuf.set_str_val_from_stream(dataInputStream, dataInputStream.readUnsignedInt());
+                break;
+            default:
+                throw new Error("Unsupported attribute tag present in stream.");
         }
 
         return true;
