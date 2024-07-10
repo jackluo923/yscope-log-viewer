@@ -31,7 +31,7 @@ class FileManager {
      * Initializes the class and sets the default states.
      *
      * @param {string} fileSrc
-     * @param sessionId
+     * @param {string} sessionId
      * @param {boolean} prettify
      * @param {number} logEventIdx
      * @param {number} initialTimestamp
