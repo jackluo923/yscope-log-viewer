@@ -1,13 +1,20 @@
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import initSqlJs from "sql.js";
-import {XzReadableStream} from "xzwasm";
 
 import * as msgpack from "@msgpack/msgpack";
 
 import {
-    DataInputStream, DataInputStreamEOFError,
+    DataInputStream,
+    DataInputStreamEOFError,
 } from "./DataInputStream";
+import {
+    decompressLzma,
+    decompressZstd,
+} from "./decompressors";
+import {
+    FILE_TYPE_MAGIC_NUMBERS, FILE_TYPES,
+} from "./FileTypes";
 
 
 dayjs.extend(utc);
@@ -16,20 +23,21 @@ dayjs.extend(utc);
  *
  * @param byteArray
  */
-const lzmaDecompress = async (byteArray) => {
-    const stream = new ReadableStream({
-        /**
-         *
-         * @param controller
-         */
-        start (controller) {
-            controller.enqueue(byteArray);
-            controller.close();
-        },
-    });
+const decompressBytes = async (byteArray) => {
+    const magicNumbers = byteArray.slice(0, 4);
 
-    const decompressedResponse = new Response(new XzReadableStream(stream));
-    return new Uint8Array(await decompressedResponse.arrayBuffer());
+    const isZstdCompressed = FILE_TYPE_MAGIC_NUMBERS[FILE_TYPES.ZST]
+        .every(
+            (value, index) => (value === magicNumbers[index]),
+        );
+
+    if (isZstdCompressed) {
+        const decompressedBuffer = await decompressZstd(byteArray);
+        return new Uint8Array(decompressedBuffer);
+    }
+
+    // assume LZMA compressed
+    return await decompressLzma(byteArray);
 };
 
 /**
@@ -213,9 +221,9 @@ export class ClpArchiveDecoder {
             f.bytes = this._dataInputStream.readFully(f.size);
 
             if ("logtype.dict" === fileName) {
-                this._logTypeDict = unpackDictionary(await lzmaDecompress(f.bytes.slice(8)));
+                this._logTypeDict = unpackDictionary(await decompressBytes(f.bytes.slice(8)));
             } else if ("var.dict" === fileName) {
-                this._varDict = unpackDictionary(await lzmaDecompress(f.bytes.slice(8)));
+                this._varDict = unpackDictionary(await decompressBytes(f.bytes.slice(8)));
             } else if ("metadata.db" === fileName) {
                 await this.__readMetaDataDb(f.bytes);
             } else if ("var.segindex" === fileName) {
@@ -227,7 +235,7 @@ export class ClpArchiveDecoder {
     }
 
     async _unpackOneSegment (segmentBytes) {
-        const decompressedBytes = await lzmaDecompress(segmentBytes);
+        const decompressedBytes = await decompressBytes(segmentBytes);
         const dataInputStream = new DataInputStream(decompressedBytes.buffer, true);
         const timestamps = [];
         const logTypes = [];
@@ -250,7 +258,7 @@ export class ClpArchiveDecoder {
 
     async _unpackSegments () {
         const unpackPromises = this._segmentFiles.map(
-            (f) => this._unpackOneSegment(f.bytes)
+            (f) => this._unpackOneSegment(f.bytes),
         );
 
         await Promise.all(unpackPromises);
@@ -258,10 +266,14 @@ export class ClpArchiveDecoder {
 
     _getBytesForVariable (logTypeCharByte, variable) {
         switch (logTypeCharByte) {
-            case 0x11: return ClpArchiveDecoder.#enc.encode(variable);
-            case 0x12: return this._varDict[variable];
-            case 0x13: return decodeClpFloat(variable);
-            default: return [];
+            case 0x11:
+                return ClpArchiveDecoder.#enc.encode(variable);
+            case 0x12:
+                return this._varDict[variable];
+            case 0x13:
+                return decodeClpFloat(variable);
+            default:
+                return [];
         }
     }
 
@@ -274,9 +286,11 @@ export class ClpArchiveDecoder {
             const logMessageBytes = [];
 
             this._logTypeDict[logType].forEach((logTypeCharByte) => {
-                if ([0x11,
+                if ([
+                    0x11,
                     0x12,
-                    0x13].includes(logTypeCharByte)) {
+                    0x13,
+                ].includes(logTypeCharByte)) {
                     const variable = variablesIterator.next().value;
                     const bytes = this._getBytesForVariable(logTypeCharByte, variable);
 
@@ -286,14 +300,13 @@ export class ClpArchiveDecoder {
                 }
             });
 
-
             const formattedTimestamp = (
                 "UTC" === globalThis.timezone ?
                     dayjs.utc(Number(timestamp)) :
                     dayjs(Number(timestamp))
-            )
-                .format();
-            const formattedMessage = ClpArchiveDecoder.#dec.decode(new Uint8Array(logMessageBytes)).trim();
+            ).format();
+            const formattedMessage = ClpArchiveDecoder.#dec.decode(new Uint8Array(logMessageBytes))
+                .trim();
 
             this._decompressedLogs.push(`${formattedTimestamp} ${formattedMessage}`);
         } // for (let i = 0; i < numMessages; i++)
