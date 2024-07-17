@@ -2,7 +2,7 @@ const PROTOCOL = {
     FOUR_BYTE_ENCODING_MAGIC_NUMBER: [0xFD, 0x2F, 0xB5, 0x29],
     METADATA: {
         VERSION_KEY: "VERSION",
-        VERSION_VALUE: "0.1.0-alpha.0",
+        VERSION_VALUE: "0.1.0-alpha.1",
         // The following regex can be used to validate a Semantic Versioning
         // string. The source of the regex can be found here: https://semver.org
         VERSION_REGEX: new RegExp("^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
