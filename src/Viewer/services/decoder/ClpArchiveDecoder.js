@@ -288,8 +288,14 @@ export class ClpArchiveDecoder {
             const logType = logTypes[i];
             const logMessageBytes = [];
 
+            let isEscaping = false;
             this._logTypeDict[logType].forEach((logTypeCharByte) => {
-                if ([
+                if (logTypeCharByte === "\\".charCodeAt(0)) {
+                    isEscaping = true;
+
+                    return;
+                }
+                if (false === isEscaping && [
                     0x11,
                     0x12,
                     0x13,
@@ -301,6 +307,7 @@ export class ClpArchiveDecoder {
                 } else {
                     logMessageBytes.push(logTypeCharByte);
                 }
+                isEscaping = false;
             });
 
             const formattedTimestamp = (
