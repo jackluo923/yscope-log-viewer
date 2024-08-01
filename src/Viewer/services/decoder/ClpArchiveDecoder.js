@@ -270,7 +270,7 @@ export class ClpArchiveDecoder {
     _getBytesForVariable (logTypeCharByte, variable) {
         switch (logTypeCharByte) {
             case 0x11:
-                return ClpArchiveDecoder.#enc.encode(variable);
+                return ClpArchiveDecoder.#enc.encode(BigInt.asIntN(64, variable));
             case 0x12:
                 return this._varDict[variable];
             case 0x13:
