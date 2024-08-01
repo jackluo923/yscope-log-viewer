@@ -290,7 +290,7 @@ export class ClpArchiveDecoder {
 
             let isEscaping = false;
             this._logTypeDict[logType].forEach((logTypeCharByte) => {
-                if (logTypeCharByte === "\\".charCodeAt(0)) {
+                if (logTypeCharByte === "\\".charCodeAt(0) && false === isEscaping) {
                     isEscaping = true;
 
                     return;
