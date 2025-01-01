@@ -18,6 +18,13 @@ module.exports = mergeWithRules({
         hot: true,
         port: 3010,
         static: "./dist",
+        client: {
+            overlay: {
+                errors: true,
+                warnings: false,
+                runtimeErrors: true
+            }
+        },
     },
     module: {
         rules: [
