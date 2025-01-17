@@ -314,7 +314,7 @@ export class ClpArchiveDecoder {
                 "UTC" === globalThis.timezone ?
                     dayjs.utc(Number(timestamp)) :
                     dayjs(Number(timestamp))
-            ).format();
+            ).format('Z YYYY-MM-DD HH:mm:ss.SSS');
             const formattedMessage = ClpArchiveDecoder.#dec.decode(new Uint8Array(logMessageBytes))
                 .trim();
 
