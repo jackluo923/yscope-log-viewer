@@ -37,7 +37,7 @@ class IRTokenDecoder {
             // user's local  timezone. This should be more convenient for the
             // user.
             outputResizableBuffer.pushString(
-                dayjs.tz(Number(timestamp)).format('Z YYYY-MM-DD HH:mm:ss.SSS')
+                dayjs.tz(Number(timestamp)).format('ZZ YYYY-MM-DD HH:mm:ss.SSS')
             );
         }
     }
